@@ -13,7 +13,7 @@ urlpatterns = [
     path('api/open/scratchlotto/', views.open_scratch_ticket, name='api-open-scratch'),
     path('api/save/sixlotto/', views.save_six_ticket, name='api-save-six'),
     path('api/daily/reward/sixlotto/', views.show_reward_lotto6, name='api-list-reward-lotto6'),
-    path('api/check/reward/sixlotto/<int:user_id>/', views.check_reward_sixlotto, name='api-check-reward-lotto6'),
+    path('api/check/reward/sixlotto/<str:username>/', views.check_reward_sixlotto, name='api-check-reward-lotto6'),
     path('api/result/summary/', views.result_summary, name='api-result-summary'),
-    path('api/dashboard/<int:user_id>/', views.dashboard_for_user, name='api-user-dashboard'),
+    path('api/dashboard/<str:username>/', views.dashboard_for_user, name='api-user-dashboard'),
 ]
