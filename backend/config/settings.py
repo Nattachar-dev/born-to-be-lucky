@@ -11,13 +11,15 @@ https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 
 from pathlib import Path
-
+from datetime import timedelta
+import os
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
+
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-#@=hebio!g-=vd9tf6k_g0&_2m&ho3*l0*my3!8c90)fk9%r*z'
@@ -40,9 +42,12 @@ INSTALLED_APPS = [
     'lotteryWeb',
     'rest_framework',
     'rest_framework.authtoken',
+    # 'api',
+    # 'corsheaers'
 ]
 
 MIDDLEWARE = [
+    # 'corsheaers.middleware.CorsMiddleware'
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -131,3 +136,7 @@ MAILERS = {
         'BACKEND': 'django.core.mail.backends.console.EmailBackend',
     },
 }
+
+
+CORS_ALLOWED_ORIGINS = True
+CORS_ALLOWED_CREDENTIALS = True

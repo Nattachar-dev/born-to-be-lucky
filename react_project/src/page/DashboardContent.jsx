@@ -35,7 +35,7 @@ class DashboardContent extends Component {
     }
     this.setState({ loading: true, error: '' });
     try {
-      const response = await fetch(`/api/dashboard/${this.props.user.id}/`, {
+      const response = await fetch(`/api/dashboard/${this.props.user.username}/`, {
         headers: { Authorization: `Token ${this.props.token}` },
       });
       const data = await this.readResponse(response);

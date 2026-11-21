@@ -213,6 +213,7 @@ def login_endpoint(request):
     if user is None:
         return Response({'detail': 'Invalid username or password.'}, status=status.HTTP_400_BAD_REQUEST)
     token, _ = Token.objects.get_or_create(user=user)
+    print("user id",user)
     return Response({'token': token.key, 'id': user.id, 'username': user.username})
 
 @api_view(['POST'])
@@ -751,8 +752,8 @@ def _lotto6_result(selected, draws, rule):
 @transaction.atomic
 @authentication_classes([TokenAuthentication])
 @permission_classes([IsAuthenticated])
-def check_reward_sixlotto(request, user_id):
-    if request.user.pk != user_id:
+def check_reward_sixlotto(request, username):
+    if request.user.username != username:
         return Response({'detail': 'You can only check your own LOTO 6 orders.'}, status=status.HTTP_403_FORBIDDEN)
     purchase = LotteryPurchase.objects.filter(user=request.user).order_by('-round_number').first()
     if purchase is None:
@@ -927,8 +928,8 @@ def result_summary(request):
 @api_view(['GET'])
 @authentication_classes([TokenAuthentication])
 @permission_classes([IsAuthenticated])
-def dashboard_for_user(request, user_id):
-    if request.user.pk != user_id:
+def dashboard_for_user(request, username):
+    if request.user.username != username:
         return Response({'detail': 'You can only view your own dashboard.'}, status=status.HTTP_403_FORBIDDEN)
 
     dashboard = _dashboard_for(request.user)

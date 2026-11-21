@@ -53,7 +53,7 @@ class ResultRewardContent extends Component {
     const requestKey = `${this.props.user.id}:${this.props.token}`
     if (!activeRewardChecks.has(requestKey)) {
       const request = this.request(
-        `/api/check/reward/sixlotto/${this.props.user.id}/`,
+        `/api/check/reward/sixlotto/${this.props.user.username}/`,
         { method: 'POST' },
       ).finally(() => {
         if (activeRewardChecks.get(requestKey) === request) {
