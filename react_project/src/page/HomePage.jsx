@@ -1,4 +1,5 @@
 import {Component} from 'react'
+import { apiFetch } from '../api';
 import './../App.css'
 import LoginContent from './LoginContent'
 import HomeContent from './HomeContent'
@@ -37,7 +38,7 @@ class HomePage extends Component {
     this.setState({ authLoading: true, authError: '' });
 
     try {
-      const response = await fetch('/api/auth/logout/', {
+      const response = await apiFetch('/api/auth/logout/', {
         method: 'POST',
         headers: { Authorization: `Token ${this.state.token}` },
       });

@@ -1,4 +1,5 @@
 import { Component } from 'react'
+import { apiFetch } from '../api';
 import './../App.css'
 import l_loto_korea from './../assets/lottery/login.jpg'
 import { thaiErrorMessage } from '../utils/thai'
@@ -24,7 +25,7 @@ class LoginContent extends Component {
 
     try {
       const isRegistering = this.state.mode === 'register';
-      const response = await fetch(
+      const response = await apiFetch(
         isRegistering ? '/api/createuser/' : '/api/auth/login/',
         {
           method: 'POST',

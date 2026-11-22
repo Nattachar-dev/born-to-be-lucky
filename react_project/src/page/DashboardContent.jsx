@@ -1,4 +1,5 @@
 import { Component } from 'react'
+import { apiFetch } from '../api';
 import './../App.css'
 import { thaiCountryName, thaiErrorMessage, thaiGameName } from '../utils/thai'
 
@@ -36,7 +37,7 @@ class DashboardContent extends Component {
     }
     this.setState({ loading: true, error: '' });
     try {
-      const response = await fetch(`/api/dashboard/${this.props.user.username}/`, {
+      const response = await apiFetch(`/api/dashboard/${this.props.user.username}/`, {
         headers: { Authorization: `Token ${this.props.token}` },
       });
       const data = await this.readResponse(response);

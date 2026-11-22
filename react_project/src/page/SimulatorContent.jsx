@@ -1,4 +1,5 @@
 import { Component } from 'react'
+import { apiFetch } from '../api';
 import './../App.css'
 
 class SimulatorContent extends Component {
@@ -56,7 +57,7 @@ class SimulatorContent extends Component {
       const headers = this.props.token
         ? { Authorization: `Token ${this.props.token}` }
         : {};
-      const response = await fetch('/api/simulator/', {
+      const response = await apiFetch('/api/simulator/', {
         headers,
         signal: abortController.signal,
       });
@@ -139,7 +140,7 @@ class SimulatorContent extends Component {
 
     this.setState({ borrowing: true, error: '', message: '' });
     try {
-      const response = await fetch('/api/borrow/', {
+      const response = await apiFetch('/api/borrow/', {
         method: 'POST',
         headers: { Authorization: `Token ${this.props.token}` },
       });
@@ -181,7 +182,7 @@ class SimulatorContent extends Component {
     this.setState({ purchasing: true, error: '', message: '' });
     let purchaseSucceeded = false;
     try {
-      const response = await fetch('/api/purchase/lottery/', {
+      const response = await apiFetch('/api/purchase/lottery/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

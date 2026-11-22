@@ -1,4 +1,5 @@
 import { Component } from 'react'
+import { apiFetch } from '../api';
 import './../App.css'
 import { thaiErrorMessage } from '../utils/thai'
 
@@ -17,7 +18,7 @@ class AdminContent extends Component {
 
     this.setState({ activeAction: action, error: '', message: '' });
     try {
-      const response = await fetch(endpoint, {
+      const response = await apiFetch(endpoint, {
         method: 'POST',
         headers: { Authorization: `Token ${token}` },
       });

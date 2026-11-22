@@ -1,4 +1,5 @@
 import { Component } from 'react'
+import { apiFetch } from '../api';
 import './../App.css'
 
 const activeRewardChecks = new Map()
@@ -34,7 +35,7 @@ class ResultRewardContent extends Component {
   }
 
   request = async (url, options = {}) => {
-    const response = await fetch(url, {
+    const response = await apiFetch(url, {
       ...options,
       headers: {
         Authorization: `Token ${this.props.token}`,

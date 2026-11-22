@@ -1,4 +1,5 @@
 import { Component, useEffect, useRef } from 'react'
+import { apiFetch } from '../api';
 import './../App.css'
 
 const NUMBER_OPTIONS = Array.from({ length: 43 }, (_, index) => index + 1)
@@ -142,7 +143,7 @@ class TicketsContent extends Component {
   }
 
   request = async (url, options = {}) => {
-    const response = await fetch(url, {
+    const response = await apiFetch(url, {
       ...options,
       headers: {
         ...(options.body ? { 'Content-Type': 'application/json' } : {}),

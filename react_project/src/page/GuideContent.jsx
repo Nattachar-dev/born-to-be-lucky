@@ -1,4 +1,5 @@
 import React, {Component} from 'react'
+import { apiFetch } from '../api';
 import './../App.css'
 import { thaiCountryName, thaiErrorMessage, thaiGuideText } from '../utils/thai'
 
@@ -16,7 +17,7 @@ class GuideContent extends Component {
     this.abortController = new AbortController();
 
     try {
-      const response = await fetch('/api/guideCountries/all/', {
+      const response = await apiFetch('/api/guideCountries/all/', {
         signal: this.abortController.signal,
       });
       if (!response.ok) {
