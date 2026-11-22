@@ -212,7 +212,7 @@ def login_endpoint(request):
     password = request.data.get('password', '')
     user = authenticate(request, username=username, password=password)
     if user is None:
-        return Response({'detail': 'username หรือ password ไม่ถูกต้อง'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'detail': 'Invalid username หรือ password ไม่ถูกต้อง'}, status=status.HTTP_400_BAD_REQUEST)
     token, _ = Token.objects.get_or_create(user=user)
     print("user id",user)
     return Response({
