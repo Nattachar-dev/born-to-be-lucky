@@ -84,20 +84,20 @@ class HomePage extends Component {
 
   render() {
     const { page, user, authError, authLoading } = this.state;
-    const navItems = ['home', 'guide', 'simulator'];
+    const navItems = ['หน้าหลัก', 'คู่มือสลาก', 'จำลองการเล่น'];
     const navLabels = {
       home: 'หน้าหลัก',
       guide: 'คู่มือสลาก',
-      simulator: 'จำลองการซื้อ',
+      simulator: 'จำลองการเล่น',
       tickets: 'สลากของฉัน',
       dashboard: 'แดชบอร์ด',
       admin: 'ผู้ดูแลระบบ',
     };
     if (user) {
-      navItems.push('tickets', 'dashboard');
+      navItems.push('สลากของฉัน', 'แดชบอร์ด');
     }
     if (user?.isStaff) {
-      navItems.push('admin');
+      navItems.push('ผู้ดูแลระบบ');
     }
 
     return (
@@ -106,7 +106,7 @@ class HomePage extends Component {
             <div className="brand-lockup">
               <div className="brand-mark" aria-hidden="true">B</div>
               <div>
-                <p className="eyebrow">{page === 'home' ? 'lottery journal' : 'บันทึกสลาก'}</p>
+                <p className="eyebrow">คนมากับกับดวง</p>
                 <h1>Born to Be Lucky</h1>
               </div>
             </div>
