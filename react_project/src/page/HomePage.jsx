@@ -84,20 +84,20 @@ class HomePage extends Component {
 
   render() {
     const { page, user, authError, authLoading } = this.state;
-    const navItems = ['หน้าหลัก', 'คู่มือสลาก', 'จำลองการเล่น'];
+    const navItems = ['home', 'guide', 'simulator'];
     const navLabels = {
       home: 'หน้าหลัก',
       guide: 'คู่มือสลาก',
-      simulator: 'จำลองการเล่น',
+      simulator: 'จำลองการซื้อ',
       tickets: 'สลากของฉัน',
       dashboard: 'แดชบอร์ด',
       admin: 'ผู้ดูแลระบบ',
     };
     if (user) {
-      navItems.push('สลากของฉัน', 'แดชบอร์ด');
+      navItems.push('tickets', 'dashboard');
     }
     if (user?.isStaff) {
-      navItems.push('ผู้ดูแลระบบ');
+      navItems.push('admin');
     }
 
     return (
@@ -106,7 +106,7 @@ class HomePage extends Component {
             <div className="brand-lockup">
               <div className="brand-mark" aria-hidden="true">B</div>
               <div>
-                <p className="eyebrow">คนมากับกับดวง</p>
+                <p className="eyebrow">คนมากับดวง</p>
                 <h1>Born to Be Lucky</h1>
               </div>
             </div>
@@ -118,7 +118,7 @@ class HomePage extends Component {
                   className={page === item ? 'active' : ''}
                   onClick={() => this.setState({ page: item })}
                 >
-                  {page === 'home' ? item : navLabels[item]}
+                  {navLabels[item]}
                 </button>
               ))}
             </nav>
