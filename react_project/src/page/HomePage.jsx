@@ -101,7 +101,7 @@ class HomePage extends Component {
     }
 
     return (
-       <div className={`app-shell${page === 'home' ? '' : ' app-shell-thai'}`}>
+       <div className={"app-shell "}>
           <header className="topbar">
             <div className="brand-lockup">
               <div className="brand-mark" aria-hidden="true">B</div>

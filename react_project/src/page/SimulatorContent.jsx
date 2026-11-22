@@ -280,7 +280,7 @@ class SimulatorContent extends Component {
     return (
       <section className="panel simulator-panel">
         <div className="section-header">
-          <h2>Lottery simulator</h2>
+          <h2>จำลองการซื้อล็อตเตอร์รี่</h2>
           <span className="status-badge">
             {isAuthenticated ? `Welcome ${this.props.user.username}` : 'Guest mode'}
           </span>
