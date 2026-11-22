@@ -2,7 +2,6 @@ import { Component } from 'react'
 import { apiFetch } from '../api';
 import './../App.css'
 import l_loto_korea from './../assets/lottery/login.jpg'
-import { thaiErrorMessage } from '../utils/thai'
 
 class LoginContent extends Component {
   constructor(props) {
@@ -63,7 +62,7 @@ class LoginContent extends Component {
       }
     } catch (error) {
       this.setState({
-        error: thaiErrorMessage(error, 'ไม่สามารถดำเนินการได้ โปรดลองอีกครั้ง'),
+        error: error,
       });
     } finally {
       this.setState({ loading: false });

@@ -59,7 +59,7 @@ class HomePage extends Component {
       });
     } catch (error) {
       this.setState({
-        authError: thaiErrorMessage(error, 'ไม่สามารถออกจากระบบได้ โปรดลองอีกครั้ง'),
+        authError: error,
       });
     } finally {
       this.setState({ authLoading: false });
