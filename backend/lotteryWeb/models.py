@@ -33,10 +33,6 @@ class Country(models.Model):
     game_types = models.JSONField(default=list)
     created_at = models.DateTimeField(auto_now_add=True)
 
-    #example: { 'code': 'JP', 'name': 'Japan', 'currency': 'JPY','description': 'Japan offers a well-structured lottery ecosystem with easy-to-understand rules and transparent prize categories.', 
-    # 'purchase_locations': ['Convenience stores', 'Lottery kiosks', 'Official retailers'], 
-    # 'game_types': ['Scratch Lottery', 'LOTO 6'], 
-
     def __str__(self):
         return self.name
 
@@ -57,11 +53,6 @@ class LotteryRule(models.Model):
     prize_structure = models.JSONField(default=list)
     rules = models.JSONField(default=list)
     created_at = models.DateTimeField(auto_now_add=True)
-
-    #Example: { 'country': 'Japan', 'game_type': 'scratch', 'ticket_price': 200,
-    # 'title': 'Scratch Lottery', 'description': 'Scratch lottery tickets are designed around matching target symbols.',
-    # 'prize_structure': [{'label': '1st Prize', 'amount': '¥1000'}, {'label': '2nd Prize', 'amount': '¥200'}, {'label': '3rd Prize', 'amount': '¥30'}],
-    # 'rules': ['Players scratch off the ticket to reveal symbols.', 'Match the required symbols to win the corresponding prize.', 'Prizes are claimed at authorized retailers.'] } 
 
     def __str__(self):
         return f'{self.country.name} - {self.game_type}'
