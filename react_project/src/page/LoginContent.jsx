@@ -2,6 +2,7 @@ import { Component } from 'react'
 import { apiFetch } from '../api';
 import './../App.css'
 import l_loto_korea from './../assets/lottery/login.jpg'
+import { thaiErrorMessage } from '../utils/thai'
 
 class LoginContent extends Component {
   constructor(props) {
@@ -62,7 +63,7 @@ class LoginContent extends Component {
       }
     } catch (error) {
       this.setState({
-        error: error,
+        error: error instanceof Error ? error.message : 'ไม่สามารถเข้าสู่ระบบได้',
       });
     } finally {
       this.setState({ loading: false });
