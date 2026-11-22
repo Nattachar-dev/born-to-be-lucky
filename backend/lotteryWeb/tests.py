@@ -78,6 +78,7 @@ class AuthenticationEndpointTests(TestCase):
             {'username': 'lucky-player', 'password': 'lottery-pass-123'},
         )
         self.assertEqual(login_response.status_code, 200)
+        self.assertFalse(login_response.data['is_staff'])
 
         token = login_response.data['token']
         client.credentials(HTTP_AUTHORIZATION=f'Token {token}')
@@ -85,6 +86,20 @@ class AuthenticationEndpointTests(TestCase):
 
         self.assertEqual(logout_response.status_code, 204)
         self.assertFalse(Token.objects.filter(key=token).exists())
+
+    def test_staff_login_returns_staff_status(self):
+        admin = get_user_model().objects.create_user(
+            username='admin-player',
+            password='admin-pass-12345',
+            is_staff=True,
+        )
+        response = APIClient().post(
+            '/api/auth/login/',
+            {'username': admin.username, 'password': 'admin-pass-12345'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data['is_staff'])
 
 
 class SimulatorApiTests(TestCase):
@@ -120,6 +135,7 @@ class SimulatorApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['wallet'], '0.00')
         self.assertEqual(response.data['prize_accumulated'], '0.00')
+        self.assertEqual(response.data['accumulated_rewards'], '0.00')
         self.assertEqual(response.data['loan_amount'], '0.00')
         self.assertEqual(response.data['countries'][0]['games'][0]['price'], '0.00')
         self.assertEqual(response.data['countries'][0]['scratch_cards_available'], 0)
@@ -158,6 +174,41 @@ class SimulatorApiTests(TestCase):
         self.assertEqual(len(response.data['countries']), 1)
         self.assertEqual(response.data['countries'][0]['games'][0]['type'], 'scratch')
         self.assertEqual(response.data['countries'][0]['games'][0]['price'], '100.00')
+
+    def test_simulator_uses_wallet_without_adding_historical_rewards(self):
+        self.dashboard.accumulated_rewards = '350.00'
+        self.dashboard.save(update_fields=['accumulated_rewards'])
+
+        response = self.client.get('/api/simulator/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['base_wallet'], '500.00')
+        self.assertEqual(response.data['accumulated_rewards'], '350.00')
+        self.assertEqual(response.data['wallet'], '500.00')
+
+    def test_purchase_does_not_add_historical_rewards_again(self):
+        self.dashboard.total_wallet = '800.00'
+        self.dashboard.accumulated_rewards = '300.00'
+        self.dashboard.save(update_fields=['total_wallet', 'accumulated_rewards'])
+
+        purchase = self.client.post(
+            '/api/purchase/lottery/',
+            {'items': [{'country_id': self.country.id, 'game_type': 'scratch', 'quantity': 8}]},
+            format='json',
+        )
+        self.dashboard.refresh_from_db()
+        next_purchase = self.client.post(
+            '/api/purchase/lottery/',
+            {'items': [{'country_id': self.country.id, 'game_type': 'scratch', 'quantity': 1}]},
+            format='json',
+        )
+
+        self.assertEqual(purchase.status_code, 200)
+        self.assertEqual(purchase.data['dashboard']['total_wallet'], '0.00')
+        self.assertEqual(purchase.data['dashboard']['accumulated_rewards'], '300.00')
+        self.assertEqual(str(self.dashboard.total_wallet), '0.00')
+        self.assertEqual(str(self.dashboard.accumulated_rewards), '300.00')
+        self.assertEqual(next_purchase.status_code, 409)
 
     def test_simulator_generates_50_cards_with_only_the_three_prize_tiers(self):
         ScratchLottoGen.objects.all().delete()
@@ -334,6 +385,9 @@ class SimulatorApiTests(TestCase):
         self.assertEqual(self.dashboard.rounds_played, 7)
 
     def test_open_scratch_ticket_saves_result_and_orders_are_private(self):
+        scratch_rule = LotteryRule.objects.get(country=self.country, game_type='scratch')
+        scratch_rule.prize_structure = [{'label': 'First', 'amount': '100.00'}]
+        scratch_rule.save(update_fields=['prize_structure'])
         card = ScratchLottoGen.objects.create(
             country=self.country,
             card_code='JP-SCRATCH-OPEN',
@@ -360,6 +414,11 @@ class SimulatorApiTests(TestCase):
             {'scratch_order_id': ticket.pk},
             format='json',
         )
+        opened_again = self.client.post(
+            '/api/open/scratchlotto/',
+            {'scratch_order_id': ticket.pk},
+            format='json',
+        )
         orders = self.client.get('/api/orders/simulator-player/')
         other_user_orders = self.client.get('/api/orders/someone-else/')
 
@@ -375,6 +434,12 @@ class SimulatorApiTests(TestCase):
         self.assertEqual(opened.status_code, 200)
         self.assertTrue(opened.data['ticket']['opened'])
         self.assertEqual(opened.data['ticket']['matches'], 2)
+        self.assertEqual(opened.data['ticket']['prize_reward'], '100.00')
+        self.assertEqual(opened_again.status_code, 200)
+        self.dashboard.refresh_from_db()
+        self.assertEqual(str(self.dashboard.accumulated_rewards), '100.00')
+        self.assertEqual(str(self.dashboard.total_wallet), '600.00')
+        self.assertEqual(self.client.get('/api/simulator/').data['wallet'], '600.00')
         self.assertEqual(orders.status_code, 200)
         self.assertEqual(orders.data['purchases'][0]['scratch_tickets'][0]['id'], ticket.pk)
         self.assertEqual(other_user_orders.status_code, 403)
@@ -420,9 +485,9 @@ class SimulatorApiTests(TestCase):
             {'six_order_id': ticket.pk, 'number_selected': [1, 2, 3, 4, 5, 7]},
             format='json',
         )
-        checked = self.client.post(f'/api/check/reward/sixlotto/{self.user.pk}/')
+        checked = self.client.post(f'/api/check/reward/sixlotto/{self.user.username}/')
         summary = self.client.get('/api/result/summary/')
-        checked_again = self.client.post(f'/api/check/reward/sixlotto/{self.user.pk}/')
+        checked_again = self.client.post(f'/api/check/reward/sixlotto/{self.user.username}/')
 
         self.assertEqual(saved.status_code, 200)
         self.assertTrue(saved.data['ticket']['is_saved'])
@@ -435,12 +500,83 @@ class SimulatorApiTests(TestCase):
         self.assertEqual(summary.data['summary'][0]['status'], 'won')
         self.assertEqual(summary.data['summary'][0]['number_selected'], [1, 2, 3, 4, 5, 7])
         self.assertEqual(summary.data['summary'][0]['checked_date'], timezone.localdate().isoformat())
+        self.assertEqual(summary.data['total_cost'], '200.00')
         self.assertEqual(
             set(purchase.six_lotto_draws.values_list('id_set', flat=True)),
             {checked.data['id_set']},
         )
         self.assertEqual(checked_again.status_code, 200)
         self.assertEqual(checked_again.data['results'][0]['prize_rank'], 2)
+        self.dashboard.refresh_from_db()
+        self.assertEqual(str(self.dashboard.accumulated_rewards), '500.00')
+        self.assertEqual(str(self.dashboard.total_wallet), '1000.00')
+        self.assertEqual(self.client.get('/api/simulator/').data['wallet'], '1000.00')
+
+    def test_six_lotto_check_uses_each_country_prize_structure(self):
+        korea = Country.objects.create(code='KR', name='Korea', currency='KRW')
+        country_prizes = (
+            (self.country, ['1000.00', '500.00', '250.00', '100.00', '50.00']),
+            (korea, ['9000.00', '7000.00', '5000.00', '3000.00', '1000.00']),
+        )
+        purchase = LotteryPurchase.objects.create(
+            user=self.user,
+            round_number=1,
+            total_cost='0.00',
+            orders=[],
+        )
+        tickets = []
+
+        for country, prizes in country_prizes:
+            LotteryRule.objects.create(
+                country=country,
+                game_type='loto6',
+                title='LOTO 6',
+                prize_structure=[
+                    {'label': f'Reward {rank}', 'amount': amount}
+                    for rank, amount in enumerate(prizes, start=1)
+                ],
+            )
+            ticket = SixLottoOrder.objects.create(
+                user=self.user,
+                order=purchase,
+                country=country,
+            )
+            tickets.append((ticket, prizes[1]))
+            saved = self.client.post(
+                '/api/save/sixlotto/',
+                {
+                    'six_order_id': ticket.pk,
+                    'number_selected': [1, 2, 3, 4, 5, 7],
+                },
+                format='json',
+            )
+            self.assertEqual(saved.status_code, 200)
+
+            for ranking in range(1, 6):
+                winning_numbers = (
+                    [1, 2, 3, 4, 5, 6]
+                    if ranking == 1
+                    else list(range(10 + (ranking - 2) * 6, 16 + (ranking - 2) * 6))
+                )
+                SixLottoGen.objects.create(
+                    country=country,
+                    trans_date=timezone.localdate(),
+                    id_set=1,
+                    ranking=ranking,
+                    number_win=winning_numbers,
+                    bonus_number=7 if ranking == 1 else 36 + ranking,
+                )
+
+        response = self.client.post(f'/api/check/reward/sixlotto/{self.user.username}/')
+
+        self.assertEqual(response.status_code, 200)
+        for ticket, expected_reward in tickets:
+            ticket.refresh_from_db()
+            self.assertEqual(ticket.prize_rank, 2)
+            self.assertEqual(str(ticket.prize_reward), expected_reward)
+
+        self.dashboard.refresh_from_db()
+        self.assertEqual(str(self.dashboard.total_wallet), '8000.00')
 
     def test_daily_reward_set_is_selected_only_after_all_round_numbers_are_saved(self):
         LotteryRule.objects.create(
@@ -513,7 +649,7 @@ class SimulatorApiTests(TestCase):
             200,
         )
         self.assertEqual(other_client.get('/api/daily/reward/sixlotto/').data['rewards'], [])
-        other_check = other_client.post(f'/api/check/reward/sixlotto/{other_user.pk}/')
+        other_check = other_client.post(f'/api/check/reward/sixlotto/{other_user.username}/')
         self.assertEqual(other_check.status_code, 200)
         self.assertEqual(len(other_client.get('/api/daily/reward/sixlotto/').data['rewards']), 5)
         self.assertEqual(self.client.get('/api/daily/reward/sixlotto/').data['rewards'], [])
@@ -524,7 +660,7 @@ class SimulatorApiTests(TestCase):
             format='json',
         )
         check_before_round_complete = self.client.post(
-            f'/api/check/reward/sixlotto/{self.user.pk}/',
+            f'/api/check/reward/sixlotto/{self.user.username}/',
         )
         self.assertEqual(first_saved.status_code, 200)
         self.assertEqual(check_before_round_complete.data['pending_rounds'], [1])
@@ -540,7 +676,7 @@ class SimulatorApiTests(TestCase):
         )
         self.assertEqual(second_saved.status_code, 200)
         self.assertEqual(self.client.get('/api/daily/reward/sixlotto/').data['rewards'], [])
-        current_check = self.client.post(f'/api/check/reward/sixlotto/{self.user.pk}/')
+        current_check = self.client.post(f'/api/check/reward/sixlotto/{self.user.username}/')
         revealed_rewards = self.client.get('/api/daily/reward/sixlotto/')
 
         self.assertEqual(current_check.status_code, 200)
@@ -563,6 +699,7 @@ class SimulatorApiTests(TestCase):
             [],
         )
         current_summary = self.client.get('/api/result/summary/')
+        self.assertEqual(current_summary.data['total_cost'], '200.00')
         self.assertEqual(
             {entry['round_number'] for entry in current_summary.data['summary']},
             {2},
@@ -579,7 +716,7 @@ class SimulatorApiTests(TestCase):
             200,
         )
         self.assertEqual(
-            self.client.post(f'/api/check/reward/sixlotto/{self.user.pk}/').status_code,
+            self.client.post(f'/api/check/reward/sixlotto/{self.user.username}/').status_code,
             200,
         )
         current_rewards = self.client.get('/api/daily/reward/sixlotto/')
@@ -588,7 +725,7 @@ class SimulatorApiTests(TestCase):
         selected_id_set = current_rewards.data['id_set']
         selected_numbers = [reward['number_win'] for reward in current_rewards.data['rewards']]
         regenerated = staff_client.post('/api/daily/reward/sixlotto/')
-        checked_again = self.client.post(f'/api/check/reward/sixlotto/{self.user.pk}/')
+        checked_again = self.client.post(f'/api/check/reward/sixlotto/{self.user.username}/')
         current_rewards_after_regeneration = self.client.get('/api/daily/reward/sixlotto/')
         self.assertEqual(regenerated.status_code, 201)
         self.assertEqual(checked_again.data['id_set'], selected_id_set)
@@ -683,6 +820,40 @@ class SimulatorApiTests(TestCase):
         self.assertTrue(SixLottoGen.objects.filter(pk=old_draw.pk).exists())
         self.assertEqual(todays_draws.values('id_set', 'number_win', 'bonus_number').distinct().count(), 50)
 
+    def test_scratch_reward_generation_is_staff_only_and_adds_20_cards_total(self):
+        initial_count = ScratchLottoGen.objects.count()
+        second_country = Country.objects.create(code='KR', name='Korea', currency='KRW')
+        LotteryRule.objects.create(
+            country=second_country,
+            game_type='scratch',
+            title='Scratch lottery',
+            ticket_price='100.00',
+        )
+
+        guest_response = APIClient().post('/api/daily/reward/scratchlotto/')
+        non_staff_response = self.client.post('/api/daily/reward/scratchlotto/')
+
+        self.assertEqual(guest_response.status_code, 401)
+        self.assertEqual(non_staff_response.status_code, 403)
+        self.assertEqual(ScratchLottoGen.objects.count(), initial_count)
+
+        staff_user = get_user_model().objects.create_user(
+            username='scratch-reward-admin',
+            password='scratch-admin-pass-123',
+            is_staff=True,
+        )
+        staff_client = APIClient()
+        staff_token = Token.objects.create(user=staff_user)
+        staff_client.credentials(HTTP_AUTHORIZATION=f'Token {staff_token.key}')
+        response = staff_client.post('/api/daily/reward/scratchlotto/')
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data['generated_count'], 20)
+        self.assertEqual(response.data['country_count'], 2)
+        self.assertEqual(ScratchLottoGen.objects.count(), initial_count + 20)
+        self.assertEqual(ScratchLottoGen.objects.filter(country=self.country).count(), 12)
+        self.assertEqual(ScratchLottoGen.objects.filter(country=second_country).count(), 10)
+
     def test_dashboard_returns_owner_metrics_and_round_history_in_descending_order(self):
         loto_rule = LotteryRule.objects.create(
             country=self.country,
@@ -727,7 +898,7 @@ class SimulatorApiTests(TestCase):
             prize_reward='150.00',
         )
 
-        response = self.client.get(f'/api/dashboard/{self.user.pk}/')
+        response = self.client.get(f'/api/dashboard/{self.user.username}/')
         other_user_response = self.client.get('/api/dashboard/9999/')
 
         self.assertEqual(response.status_code, 200)

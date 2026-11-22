@@ -1,5 +1,6 @@
 import { Component } from 'react'
 import './../App.css'
+import { thaiCountryName, thaiErrorMessage, thaiGameName } from '../utils/thai'
 
 class DashboardContent extends Component {
   constructor(props) {
@@ -30,7 +31,7 @@ class DashboardContent extends Component {
 
   loadDashboard = async () => {
     if (!this.props.token || !this.props.user?.id) {
-      this.setState({ loading: false, error: 'Please sign in again to view your dashboard.' });
+      this.setState({ loading: false, error: 'กรุณาเข้าสู่ระบบอีกครั้งเพื่อดูแดชบอร์ด' });
       return;
     }
     this.setState({ loading: true, error: '' });
@@ -40,15 +41,15 @@ class DashboardContent extends Component {
       });
       const data = await this.readResponse(response);
       if (!response.ok) {
-        throw new Error(data?.detail || `Dashboard request failed (${response.status}).`);
+        throw new Error(data?.detail || `โหลดแดชบอร์ดไม่สำเร็จ (รหัส ${response.status})`);
       }
       if (!data?.dashboard || !Array.isArray(data.history)) {
-        throw new Error('The dashboard API returned invalid data.');
+        throw new Error('ข้อมูลแดชบอร์ดที่ได้รับไม่ถูกต้อง');
       }
       this.setState({ dashboard: data.dashboard, history: data.history });
     } catch (error) {
       this.setState({
-        error: error instanceof Error ? error.message : 'Unable to load your dashboard.',
+        error: thaiErrorMessage(error, 'ไม่สามารถโหลดแดชบอร์ดได้ โปรดลองอีกครั้ง'),
       });
     } finally {
       this.setState({ loading: false });
@@ -75,14 +76,18 @@ class DashboardContent extends Component {
       <section className="panel dashboard-panel">
         <div className="section-header">
           <div>
-            <p className="eyebrow">Your account at a glance</p>
-            <h2>Player dashboard</h2>
+            <p className="eyebrow">ภาพรวมบัญชีของคุณ</p>
+            <h2>แดชบอร์ดผู้เล่น</h2>
           </div>
-          {dashboard && <span className="status-badge">{dashboard.status}</span>}
+          {dashboard && (
+            <span className="status-badge">
+              {{ profit: 'กำไร', loss: 'ขาดทุน', normal: 'ปกติ' }[dashboard.status] || dashboard.status}
+            </span>
+          )}
         </div>
 
         {error && <p role="alert">{error}</p>}
-        {loading && <p role="status">Loading dashboard...</p>}
+        {loading && <p role="status">กำลังโหลดแดชบอร์ด...</p>}
 
         {dashboard && (
           <div className="stats-grid dashboard-grid">
@@ -108,7 +113,7 @@ class DashboardContent extends Component {
             <article className="stat-card">
               <span>ยอดเงินยืมสะสม</span>
               <strong>฿{this.formatMoney(dashboard.total_borrowed)}</strong>
-              <small>{dashboard.borrow_count} loan requests</small>
+              <small>คำขอยืมเงิน {dashboard.borrow_count} ครั้ง</small>
             </article>
           </div>
         )}
@@ -116,14 +121,14 @@ class DashboardContent extends Component {
         <section className="dashboard-history">
           <div className="dashboard-history-heading">
             <div>
-              <p className="eyebrow">Ordered by round</p>
-              <h3>Play history</h3>
+              <p className="eyebrow">เรียงตามรอบ</p>
+              <h3>ประวัติการเล่น</h3>
             </div>
-            <span className="status-badge">{history.length} rounds</span>
+            <span className="status-badge">{history.length} รอบ</span>
           </div>
 
           {!loading && history.length === 0 ? (
-            <p className="dashboard-history-empty">No play history yet.</p>
+            <p className="dashboard-history-empty">ยังไม่มีประวัติการเล่น</p>
           ) : (
             <div className="dashboard-history-list">
               {history.map((round) => (
@@ -136,12 +141,12 @@ class DashboardContent extends Component {
                     onClick={() => this.toggleRound(round.round_number)}
                   >
                     <div>
-                      <strong>Round {round.round_number}</strong>
-                      <span>{round.date} · {round.countries.length} countries</span>
+                      <strong>รอบที่ {round.round_number}</strong>
+                      <span>{round.date} · {round.countries.length} ประเทศ</span>
                     </div>
                     <div className="dashboard-round-totals">
-                      <span>Spent ฿{this.formatMoney(round.total_cost)}</span>
-                      <span>Prize ฿{this.formatMoney(round.total_prize)}</span>
+                      <span>ใช้ไป ฿{this.formatMoney(round.total_cost)}</span>
+                      <span>รางวัล ฿{this.formatMoney(round.total_prize)}</span>
                       <strong className={Number(round.net_result) >= 0 ? 'positive' : 'negative'}>
                         {Number(round.net_result) >= 0 ? '+' : '−'}฿
                         {this.formatMoney(Math.abs(Number(round.net_result)))}
@@ -160,24 +165,24 @@ class DashboardContent extends Component {
                       <section className="dashboard-round-country-group" key={`${round.round_number}-${entry.country.id}`}>
                         <div className="dashboard-round-country">
                           <div>
-                            <strong>{entry.country.name}</strong>
-                            <span>{entry.games.join(' · ')}</span>
+                            <strong>{thaiCountryName(entry.country.name)}</strong>
+                            <span>{entry.games.map(thaiGameName).join(' · ')}</span>
                           </div>
                           <small>
-                            {entry.scratch_count} Scratch · {entry.six_count} LOTO 6
+                            สลากขูด {entry.scratch_count} · ล็อตโต้ 6 {entry.six_count}
                           </small>
                         </div>
                         <div className="dashboard-round-ticket-list">
                           {entry.scratch_tickets.map((ticket) => (
                             <article className="dashboard-round-ticket" key={`scratch-${ticket.id}`}>
                               <div className="dashboard-round-ticket-heading">
-                                <strong>Scratch #{ticket.id}</strong>
+                                <strong>สลากขูด #{ticket.id}</strong>
                                 <span className={`dashboard-ticket-status ${ticket.status}`}>
                                   {ticket.status === 'won'
-                                    ? 'Winner'
+                                    ? 'ถูกรางวัล'
                                     : ticket.status === 'no_prize'
-                                      ? 'No prize'
-                                      : 'Not opened'}
+                                      ? 'ไม่ถูกรางวัล'
+                                      : 'ยังไม่เปิด'}
                                 </span>
                               </div>
                               {ticket.opened ? (
@@ -188,25 +193,25 @@ class DashboardContent extends Component {
                                     ))}
                                   </div>
                                   <p>
-                                    Matches: {ticket.matches} · Prize: ฿
+                                    จับคู่ได้ {ticket.matches} · รางวัล: ฿
                                     {this.formatMoney(ticket.prize_reward)}
                                   </p>
                                 </>
                               ) : (
-                                <p>Open this ticket to see its result.</p>
+                                <p>เปิดสลากใบนี้เพื่อดูผล</p>
                               )}
                             </article>
                           ))}
                           {entry.six_tickets.map((ticket) => (
                             <article className="dashboard-round-ticket" key={`six-${ticket.id}`}>
                               <div className="dashboard-round-ticket-heading">
-                                <strong>LOTO 6 #{ticket.id}</strong>
+                                <strong>ล็อตโต้ 6 #{ticket.id}</strong>
                                 <span className={`dashboard-ticket-status ${ticket.status}`}>
                                   {ticket.status === 'won'
-                                    ? 'Winner'
+                                    ? 'ถูกรางวัล'
                                     : ticket.status === 'no_prize'
-                                      ? 'No prize'
-                                      : 'Pending'}
+                                      ? 'ไม่ถูกรางวัล'
+                                      : 'รอผล'}
                                 </span>
                               </div>
                               {Array.isArray(ticket.selected_numbers) && ticket.selected_numbers.length > 0 ? (
@@ -216,14 +221,14 @@ class DashboardContent extends Component {
                                   ))}
                                 </div>
                               ) : (
-                                <p>Numbers not saved yet.</p>
+                                <p>ยังไม่ได้บันทึกตัวเลข</p>
                               )}
                               {ticket.is_checked && (
                                 <p>
-                                  Matches: {ticket.matches}/6
-                                  {ticket.bonus_match ? ' + bonus' : ''}
-                                  {ticket.prize_rank ? ` · Rank ${ticket.prize_rank}` : ''}
-                                  {' · '}Prize: ฿{this.formatMoney(ticket.prize_reward)}
+                                  จับคู่ได้ {ticket.matches}/6
+                                  {ticket.bonus_match ? ' + โบนัส' : ''}
+                                  {ticket.prize_rank ? ` · รางวัลที่ ${ticket.prize_rank}` : ''}
+                                  {' · '}เงินรางวัล: ฿{this.formatMoney(ticket.prize_reward)}
                                 </p>
                               )}
                             </article>

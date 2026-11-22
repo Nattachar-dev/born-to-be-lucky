@@ -1,6 +1,7 @@
 import { Component } from 'react'
 import './../App.css'
 import l_loto_korea from './../assets/lottery/login.jpg'
+import { thaiErrorMessage } from '../utils/thai'
 
 class LoginContent extends Component {
   constructor(props) {
@@ -37,26 +38,31 @@ class LoginContent extends Component {
         : null;
 
       if (!response.ok) {
-        throw new Error(data?.detail || `Request failed (${response.status}).`);
+        throw new Error(data?.detail || `คำขอไม่สำเร็จ (รหัส ${response.status})`);
       }
       if (!data) {
-        throw new Error('The server returned an unexpected response.');
+        throw new Error('เซิร์ฟเวอร์ส่งข้อมูลตอบกลับไม่ถูกต้อง');
       }
 
       if (isRegistering) {
         this.setState({
           mode: 'login',
-          message: 'Account created. Please log in.',
+          message: 'สร้างบัญชีเรียบร้อยแล้ว กรุณาเข้าสู่ระบบ',
         });
       } else {
-        if (!data.username || !data.token) {
-          throw new Error('The login response is missing account information.');
+        if (!data.username || !data.token || typeof data.is_staff !== 'boolean') {
+          throw new Error('ข้อมูลบัญชีจากการเข้าสู่ระบบไม่ครบถ้วน');
         }
-        this.props.onLogin({ id: data.id, username: data.username, token: data.token });
+        this.props.onLogin({
+          id: data.id,
+          username: data.username,
+          token: data.token,
+          isStaff: data.is_staff,
+        });
       }
     } catch (error) {
       this.setState({
-        error: error instanceof Error ? error.message : 'Unable to complete the request.',
+        error: thaiErrorMessage(error, 'ไม่สามารถดำเนินการได้ โปรดลองอีกครั้ง'),
       });
     } finally {
       this.setState({ loading: false });
@@ -81,26 +87,26 @@ class LoginContent extends Component {
 
     return (
       <section className="panel form-panel">
-        <h2>{user ? 'Lucky ☘' : isRegistering ? 'Register' : 'Login'}</h2>
+        <h2>{user ? 'โชคดี ☘' : isRegistering ? 'สมัครสมาชิก' : 'เข้าสู่ระบบ'}</h2>
         {error && <p role="alert">{error}</p>}
         {message && <p role="status">{message}</p>}
         {user ? (
           <div className="login-success">
-            <h2>Welcome {user.username}</h2>
-            <p>You are signed in and can access your tickets and dashboard.</p>
+            <h2>ยินดีต้อนรับ {user.username}</h2>
+            <p>คุณเข้าสู่ระบบแล้ว และสามารถเข้าถึงสลากกับแดชบอร์ดของคุณได้</p>
             <button
               className="login-logout-button"
               type="button"
               onClick={onLogout}
               disabled={authLoading}
             >
-              {authLoading ? 'Logging out...' : 'Logout'}
+              {authLoading ? 'กำลังออกจากระบบ...' : 'ออกจากระบบ'}
             </button>
           </div>
         ) : (
           <form onSubmit={this.handleSubmit} className="login-form">
             <label>
-              Username
+              ชื่อผู้ใช้
               <input
                 type="text"
                 name="username"
@@ -111,7 +117,7 @@ class LoginContent extends Component {
               />
             </label>
             <label>
-              Password
+              รหัสผ่าน
               <input
                 type="password"
                 name="password"
@@ -123,21 +129,21 @@ class LoginContent extends Component {
               />
             </label>
             <button type="submit" disabled={loading}>
-              {loading ? 'Please wait...' : isRegistering ? 'Create account' : 'Login'}
+              {loading ? 'กรุณารอสักครู่...' : isRegistering ? 'สร้างบัญชี' : 'เข้าสู่ระบบ'}
             </button>
             {isRegistering ? (
               <button type="button" onClick={() => this.handleModeChange('login')}>
-                Back to login
+                กลับไปหน้าเข้าสู่ระบบ
               </button>
             ) : (
               <button type="button" onClick={() => this.handleModeChange('register')}>
-                Register
+                สมัครสมาชิก
               </button>
             )}
           </form>
         )}
-        <div className="hero-visual" role="img" aria-label="Sunlit minimalist cafe with warm wooden details">
-          <img src={l_loto_korea} alt="Login" />
+        <div className="hero-visual" role="img" aria-label="ภาพคาเฟ่สไตล์มินิมอลที่มีแสงแดดและตกแต่งด้วยไม้โทนอุ่น">
+          <img src={l_loto_korea} alt="เข้าสู่ระบบ" />
         </div>
       </section>
     )

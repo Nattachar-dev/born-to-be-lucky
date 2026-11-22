@@ -24,7 +24,6 @@ class SimulatorContent extends Component {
 
   componentDidMount() {
     this.loadSimulatorData();
-    this.loadDashboard();
   }
 
   componentDidUpdate(previousProps) {
@@ -73,7 +72,7 @@ class SimulatorContent extends Component {
       const walletSnapshot = {
         wallet: Number(data.wallet),
         baseWallet: Number(data.base_wallet ?? data.wallet),
-        accumulatedPrizes: Number(data.prize_accumulated || 0),
+        accumulatedPrizes: Number(data.accumulated_rewards || 0),
         loanAmount: Number(data.loan_amount || 0),
         loanUsed: Boolean(data.loan_used),
       };
@@ -95,41 +94,6 @@ class SimulatorContent extends Component {
         this.setState({ loading: false });
       }
     }
-  }
-
-  loadDashboard = async () => {
-    if (!this.props.token || !this.props.user?.id) {
-      return;
-    }
-    this.setState({ loading: true, error: '' });
-    try {
-      const response = await fetch(`/api/dashboard/${this.props.user.username}/`, {
-        headers: { Authorization: `Token ${this.props.token}` },
-      });
-      const data = await this.readResponse(response);
-      if (!response.ok) {
-        throw new Error(data?.detail || `Dashboard request failed (${response.status}).`);
-      }
-      if (!data?.dashboard || !Array.isArray(data.history)) {
-        throw new Error('The dashboard API returned invalid data.');
-      }
-      const dashboard = data.dashboard
-
-      this.setState(
-        {wallet: Number(dashboard.total_wallet) + Number(dashboard.total_prizes_won),
-          baseWallet: Number(dashboard.total_wallet) + Number(dashboard.total_prizes_won),
-          accumulatedPrizes: Number(dashboard.prize_accumulated),
-          loanAmount: Number(dashboard.total_borrowed),
-          loanUsed: Number(dashboard.borrow_count)
-        })
-    } catch (error) {
-      this.setState({
-        error: error instanceof Error ? error.message : 'Unable to load your dashboard.',
-      });
-    } finally {
-      this.setState({ loading: false });
-    }
-
   }
 
   getQuantity = (countryId, gameType) => {
@@ -191,7 +155,7 @@ class SimulatorContent extends Component {
       const walletSnapshot = {
         wallet: Number(data.wallet),
         baseWallet: Number(data.dashboard.total_wallet),
-        accumulatedPrizes: Number(data.dashboard.prize_accumulated || 0),
+        accumulatedPrizes: Number(data.dashboard.accumulated_rewards || 0),
         loanUsed: Boolean(data.loan_used),
         loanAmount: Number(data.loan_amount || this.state.loanAmount),
       };
@@ -256,7 +220,7 @@ class SimulatorContent extends Component {
       const walletSnapshot = {
         wallet: Number(data.dashboard.total_wallet),
         baseWallet: Number(data.dashboard.total_wallet),
-        accumulatedPrizes: Number(data.dashboard.prize_accumulated || 0),
+        accumulatedPrizes: Number(data.dashboard.accumulated_rewards || 0),
         loanAmount: this.state.loanAmount,
         loanUsed: false,
       };
@@ -347,7 +311,9 @@ class SimulatorContent extends Component {
             </div>
             <div>
               <span>ยอดเงินกู้</span>
-              <strong>฿{Math.max(wallet - baseWallet, 0).toLocaleString()}</strong>
+              <strong>
+                ฿{Math.max(wallet - baseWallet, 0).toLocaleString()}
+              </strong>
             </div>
             <div>
               <span>ยอดเงินรางวัลสะสม</span>

@@ -10,6 +10,7 @@ class ResultRewardContent extends Component {
       summary: [],
       dailyRewards: [],
       roundNumber: null,
+      totalAmountSpentCents: 0,
       openRewardCountry: '',
       loading: true,
       error: '',
@@ -88,7 +89,11 @@ class ResultRewardContent extends Component {
         this.request('/api/result/summary/'),
         this.request('/api/daily/reward/sixlotto/'),
       ]);
-      if (!Array.isArray(data?.summary) || !Array.isArray(rewards?.rewards)) {
+      if (
+        !Array.isArray(data?.summary) ||
+        !Number.isFinite(Number(data.total_cost)) ||
+        !Array.isArray(rewards?.rewards)
+      ) {
         throw new Error('The result summary API returned invalid data.');
       }
       const roundNumber = data.summary.reduce(
@@ -115,6 +120,7 @@ class ResultRewardContent extends Component {
         summary: currentSummary,
         dailyRewards: currentRewards,
         roundNumber: roundNumber || null,
+        totalAmountSpentCents: Math.round(Number(data.total_cost) * 100),
         openRewardCountry: currentRewards.length
           ? `${currentRewards[0].round_number}-${currentRewards[0].country.id}`
           : '',
@@ -146,10 +152,107 @@ class ResultRewardContent extends Component {
     return Array.from(countries.values());
   }
 
+  toCents = (amount) => {
+    const value = Number(amount || 0);
+    return Number.isFinite(value) ? Math.round(value * 100) : 0;
+  }
+
+  formatMoney = (cents) => (cents / 100).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+
+  getEligibleRewardNumber = (matches, bonusMatch) => {
+    switch (Number(matches)) {
+      case 6:
+        return 1;
+      case 5:
+        return bonusMatch ? 2 : 3;
+      case 4:
+        return 4;
+      case 3:
+        return 5;
+      default:
+        return null;
+    }
+  }
+
+  isLotoWinner = (result) => (
+    result.ticket_type === 'loto6' &&
+    result.status === 'won' &&
+    result.is_winner === true &&
+    this.getEligibleRewardNumber(result.matches, result.bonus_match) === Number(result.prize_rank)
+  )
+
+  getTicketMatchIndicators = (result) => {
+    const rewards = this.state.dailyRewards.filter((reward) => (
+      Number(reward.round_number) === Number(result.round_number) &&
+      reward.country.id === result.country.id
+    ));
+    const selectedNumbers = new Set(result.number_selected.map(Number));
+    const rewardMatches = rewards
+      .filter((reward) => Array.isArray(reward.number_win))
+      .map((reward) => {
+        const rewardNumber = Number(reward.ranking);
+        const matchedNumbers = new Set(
+          reward.number_win
+            .map(Number)
+            .filter((number) => selectedNumbers.has(number)),
+        );
+        return { rewardNumber, matchedNumbers };
+      })
+      .filter((reward) => reward.matchedNumbers.size > 0)
+      .sort((left, right) => (
+        right.matchedNumbers.size - left.matchedNumbers.size ||
+        left.rewardNumber - right.rewardNumber
+      ));
+    const bestMatch = rewardMatches[0];
+    const bonusNumbers = new Set(
+      rewards
+        .map((reward) => Number(reward.bonus_number))
+        .filter(Number.isFinite),
+    );
+    const indicators = new Map();
+
+    result.number_selected.forEach((number) => {
+      const selectedNumber = Number(number);
+      const indicator = {};
+      if (bestMatch?.matchedNumbers.has(selectedNumber)) {
+        indicator.rewardNumber = bestMatch.rewardNumber;
+      }
+      if (bonusNumbers.has(selectedNumber)) {
+        indicator.isBonus = true;
+      }
+      if (indicator.rewardNumber || indicator.isBonus) {
+        indicators.set(selectedNumber, indicator);
+      }
+    });
+
+    return indicators;
+  }
+
   render() {
-    const { summary, dailyRewards, roundNumber, loading, error, message, openRewardCountry } = this.state;
+    const {
+      summary,
+      dailyRewards,
+      roundNumber,
+      totalAmountSpentCents,
+      loading,
+      error,
+      message,
+      openRewardCountry,
+    } = this.state;
     const rewardGroups = this.getRewardGroups();
     const hasLotoTickets = summary.some((result) => result.ticket_type === 'loto6');
+    const totalRewardsWonCents = summary
+      .filter((result) => Number(result.round_number) === roundNumber)
+      .reduce((total, result) => total + this.toCents(result.prize_reward), 0);
+    const profitLossCents = totalRewardsWonCents - totalAmountSpentCents;
+    const profitLossLabel = profitLossCents > 0
+      ? 'Profit'
+      : profitLossCents < 0
+        ? 'Loss'
+        : 'Break-even';
     return (
       <section className="panel results-panel">
         <div className="section-header">
@@ -163,6 +266,32 @@ class ResultRewardContent extends Component {
         {error && <p role="alert">{error}</p>}
         {message && <p role="status">{message}</p>}
         {loading && <p role="status">Checking rewards and loading your summary...</p>}
+
+        {!loading && !error && (
+          <section className="result-round-summary" aria-label="Current round profit or loss">
+            <div className="result-round-summary-heading">
+              <p className="eyebrow">Round {roundNumber || '—'} financial summary</p>
+              <h3>Profit / Loss</h3>
+            </div>
+            <div className="result-round-summary-values">
+              <div>
+                <span>Total rewards won</span>
+                <strong>฿{this.formatMoney(totalRewardsWonCents)}</strong>
+              </div>
+              <div>
+                <span>Total amount spent</span>
+                <strong>฿{this.formatMoney(totalAmountSpentCents)}</strong>
+              </div>
+              <div className={`result-round-net${profitLossCents > 0 ? ' positive' : profitLossCents < 0 ? ' negative' : ''}`}>
+                <span>{profitLossLabel}</span>
+                <strong>
+                  {profitLossCents < 0 ? '−' : profitLossCents > 0 ? '+' : ''}
+                  ฿{this.formatMoney(Math.abs(profitLossCents))}
+                </strong>
+              </div>
+            </div>
+          </section>
+        )}
 
         <section className="my-lottery-results">
           <div className="my-lottery-type-header">
@@ -194,7 +323,7 @@ class ResultRewardContent extends Component {
                       <span className="my-lottery-country-code">{country.code}</span>
                       <span className="my-lottery-country-label">
                         <strong>Round {country.roundNumber} · {country.name}</strong>
-                        <small>{country.rewards.length} prize rankings</small>
+                        <small>{country.rewards.length} rewards</small>
                       </span>
                       <span className="guide-chevron" aria-hidden="true" />
                     </button>
@@ -209,7 +338,7 @@ class ResultRewardContent extends Component {
                               <div className="reward-header">
                                 <div>
                                   <p className="eyebrow">Round {country.roundNumber} · {country.name}</p>
-                                  <h4>Rank {reward.ranking}</h4>
+                                  <h4>Reward {reward.ranking}</h4>
                                 </div>
                                 <strong>Bonus {reward.bonus_number}</strong>
                               </div>
@@ -237,55 +366,98 @@ class ResultRewardContent extends Component {
           </div>
         ) : (
           <div className="result-list">
-            {summary.map((result) => (
-              <article className="result-item" key={`${result.ticket_type}-${result.ticket_id}`}>
-                <div>
-                  <h4>
-                    {result.country.name} ·{' '}
-                    {result.ticket_type === 'scratch' ? 'Scratch Lottery' : 'LOTO 6'}
-                  </h4>
-                  <p>Round {result.round_number} · Ticket #{result.ticket_id}</p>
-                  {result.ticket_type === 'loto6' && (
-                    <div className="result-selected-number-block">
-                      <p>Your selected numbers</p>
-                      {Array.isArray(result.number_selected) && result.number_selected.length > 0 ? (
-                        <div className="reward-numbers">
-                          {result.number_selected.map((number) => (
-                            <span key={number}>{number}</span>
-                          ))}
-                        </div>
-                      ) : (
-                        <p>Numbers have not been saved yet.</p>
+            {summary.map((result) => {
+              const isLotoWinner = this.isLotoWinner(result);
+              const matchIndicators = result.ticket_type === 'loto6' &&
+                Array.isArray(result.number_selected)
+                ? this.getTicketMatchIndicators(result)
+                : new Map();
+              const isWinner = result.ticket_type === 'loto6'
+                ? isLotoWinner
+                : result.status === 'won';
+              return (
+                <article className="result-item" key={`${result.ticket_type}-${result.ticket_id}`}>
+                  <div>
+                    <h4>
+                      {result.country.name} ·{' '}
+                      {result.ticket_type === 'scratch' ? 'Scratch Lottery' : 'LOTO 6'}
+                    </h4>
+                    <p>Round {result.round_number} · Ticket #{result.ticket_id}</p>
+                    {result.ticket_type === 'loto6' && (
+                      <div className="result-selected-number-block">
+                        <p>Your selected numbers</p>
+                        {Array.isArray(result.number_selected) && result.number_selected.length > 0 ? (
+                          <div className="result-selected-numbers">
+                            {result.number_selected.map((number) => {
+                              const indicator = matchIndicators.get(Number(number));
+                              return (
+                                <span
+                                  className={`result-selected-number${indicator ? ' matched' : ''}`}
+                                  key={number}
+                                >
+                                  <span className="result-selected-value">{number}</span>
+                                  {indicator?.rewardNumber && (
+                                    <small className="result-number-reward">
+                                      Reward {indicator.rewardNumber}
+                                    </small>
+                                  )}
+                                  {indicator?.isBonus && (
+                                    <span
+                                      className="result-number-bonus"
+                                      role="img"
+                                      aria-label="Bonus number"
+                                      title="Bonus number"
+                                    >
+                                      ⭐
+                                    </span>
+                                  )}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <p>Numbers have not been saved yet.</p>
+                        )}
+                      </div>
+                    )}
+                    {result.matches !== null && result.matches !== undefined && (
+                      <p>
+                        Matched {result.matches} numbers
+                        {result.bonus_match ? ' + bonus' : ''}
+                        {isLotoWinner ? ` · Reward ${result.prize_rank}` : ''}
+                      </p>
+                    )}
+                  </div>
+                  <div className="result-meta">
+                    <span className="status-badge">
+                      {isLotoWinner && (
+                        <span
+                          className="result-status-trophy"
+                          role="img"
+                          aria-label="Winning ticket"
+                          title="Winning ticket"
+                        >
+                          🏆
+                        </span>
                       )}
-                    </div>
-                  )}
-                  {result.matches !== null && result.matches !== undefined && (
-                    <p>
-                      Matched {result.matches} numbers
-                      {result.bonus_match ? ' + bonus' : ''}
-                      {result.prize_rank ? ` · Rank ${result.prize_rank}` : ''}
-                    </p>
-                  )}
-                </div>
-                <div className="result-meta">
-                  <span className="status-badge">
-                    {result.status === 'won'
-                      ? 'Winner'
-                      : result.status === 'no_prize'
-                        ? 'No prize'
-                        : 'Pending'}
-                  </span>
-                  {result.prize_reward !== null && result.prize_reward !== undefined && (
-                    <strong>Prize {Number(result.prize_reward).toLocaleString()}</strong>
-                  )}
-                </div>
-              </article>
-            ))}
+                      {isWinner
+                        ? 'Winner'
+                        : result.status === 'no_prize'
+                          ? 'No prize'
+                          : 'Pending'}
+                    </span>
+                    {result.prize_reward !== null && result.prize_reward !== undefined && (
+                      <strong>Prize {Number(result.prize_reward).toLocaleString()}</strong>
+                    )}
+                  </div>
+                </article>
+              );
+            })}
           </div>
         )}
 
         <div className="my-lottery-footer">
-          <span>Each round has a private draw, revealed after all its LOTO 6 numbers are saved.</span>
+          <span>LOTTO6 - แต่ละรอบจะมีการสุ่มชุดผลรางวัลใหม่ทุกครั้ง</span>
           <button type="button" onClick={this.props.gotoTickets}>Back to tickets</button>
         </div>
       </section>

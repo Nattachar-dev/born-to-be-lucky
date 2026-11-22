@@ -7,6 +7,8 @@ import SimulatorContent from './SimulatorContent'
 import TicketsContent from './TicketsContent'
 import DashboardContent from './DashboardContent'
 import ResultRewardContent from './ResultRewardContent'
+import AdminContent from './AdminContent'
+import { thaiErrorMessage } from '../utils/thai'
 
 
 
@@ -23,8 +25,8 @@ class HomePage extends Component {
     };
   }
 
-  handleLogin = ({ id, username, token }) => {
-    this.setState({ user: { id, username }, token, walletSnapshot: null, authError: '' });
+  handleLogin = ({ id, username, token, isStaff }) => {
+    this.setState({ user: { id, username, isStaff }, token, walletSnapshot: null, authError: '' });
   }
 
   handleWalletSnapshot = (walletSnapshot) => {
@@ -45,7 +47,7 @@ class HomePage extends Component {
         const data = contentType.includes('application/json')
           ? await response.json()
           : null;
-        throw new Error(data?.detail || `Logout failed (${response.status}).`);
+        throw new Error(data?.detail || `ออกจากระบบไม่สำเร็จ (รหัส ${response.status})`);
       }
 
       this.setState({
@@ -56,7 +58,7 @@ class HomePage extends Component {
       });
     } catch (error) {
       this.setState({
-        authError: error instanceof Error ? error.message : 'Unable to log out.',
+        authError: thaiErrorMessage(error, 'ไม่สามารถออกจากระบบได้ โปรดลองอีกครั้ง'),
       });
     } finally {
       this.setState({ authLoading: false });
@@ -82,17 +84,28 @@ class HomePage extends Component {
   render() {
     const { page, user, authError, authLoading } = this.state;
     const navItems = ['home', 'guide', 'simulator'];
+    const navLabels = {
+      home: 'หน้าหลัก',
+      guide: 'คู่มือสลาก',
+      simulator: 'จำลองการซื้อ',
+      tickets: 'สลากของฉัน',
+      dashboard: 'แดชบอร์ด',
+      admin: 'ผู้ดูแลระบบ',
+    };
     if (user) {
       navItems.push('tickets', 'dashboard');
     }
+    if (user?.isStaff) {
+      navItems.push('admin');
+    }
 
     return (
-       <div className="app-shell">
+       <div className={`app-shell${page === 'home' ? '' : ' app-shell-thai'}`}>
           <header className="topbar">
             <div className="brand-lockup">
               <div className="brand-mark" aria-hidden="true">B</div>
               <div>
-                <p className="eyebrow">lottery journal</p>
+                <p className="eyebrow">{page === 'home' ? 'lottery journal' : 'บันทึกสลาก'}</p>
                 <h1>Born to Be Lucky</h1>
               </div>
             </div>
@@ -104,7 +117,7 @@ class HomePage extends Component {
                   className={page === item ? 'active' : ''}
                   onClick={() => this.setState({ page: item })}
                 >
-                  {item}
+                  {page === 'home' ? item : navLabels[item]}
                 </button>
               ))}
             </nav>
@@ -112,7 +125,9 @@ class HomePage extends Component {
               {user ? (
                 <>
                   <button type="button" onClick={this.handleLogout} disabled={authLoading}>
-                    {authLoading ? 'Logging out...' : 'Logout'}
+                    {authLoading
+                      ? page === 'home' ? 'Logging out...' : 'กำลังออกจากระบบ...'
+                      : page === 'home' ? 'Logout' : 'ออกจากระบบ'}
                   </button>
                 </>
               ) : (
@@ -121,7 +136,7 @@ class HomePage extends Component {
                   className={page === 'login' ? 'active' : ''}
                   onClick={() => this.setState({ page: 'login' })}
                 >
-                  Login
+                  {page === 'home' ? 'Login' : 'เข้าสู่ระบบ'}
                 </button>
               )}
             </div>
@@ -157,6 +172,9 @@ class HomePage extends Component {
             )}
             {page === 'dashboard' && user && (
               <DashboardContent user={user} token={this.state.token} />
+            )}
+            {page === 'admin' && user?.isStaff && (
+              <AdminContent user={user} token={this.state.token} />
             )}
             {page === 'ResultRewardContent' && user && (
               <ResultRewardContent

@@ -73,6 +73,7 @@ def _dashboard_data(dashboard):
         'total_borrowed': _money(dashboard.total_borrowed),
         'borrow_count': dashboard.borrow_count,
         'prize_accumulated': _money(dashboard.prize_accumulated),
+        'accumulated_rewards': _money(dashboard.accumulated_rewards),
         'rounds_played': dashboard.rounds_played,
         'net_profit_or_loss': _money(dashboard.net_profit_or_loss),
         'status': dashboard.status_wallet,
@@ -214,7 +215,12 @@ def login_endpoint(request):
         return Response({'detail': 'Invalid username or password.'}, status=status.HTTP_400_BAD_REQUEST)
     token, _ = Token.objects.get_or_create(user=user)
     print("user id",user)
-    return Response({'token': token.key, 'id': user.id, 'username': user.username})
+    return Response({
+        'token': token.key,
+        'id': user.id,
+        'username': user.username,
+        'is_staff': user.is_staff,
+    })
 
 @api_view(['POST'])
 @authentication_classes([TokenAuthentication])
@@ -270,6 +276,7 @@ def simulator_data(request):
         'wallet': _money(wallet),
         'base_wallet': _money(dashboard.total_wallet) if dashboard else '0.00',
         'prize_accumulated': _money(dashboard.prize_accumulated) if dashboard else '0.00',
+        'accumulated_rewards': _money(dashboard.accumulated_rewards if dashboard else 0),
         'loan_amount': _money(LOAN_AMOUNT) if dashboard else '0.00',
         'loan_used': bool(round_loan),
         'round_number': current_round,
@@ -360,6 +367,7 @@ def purchase_lottery(request):
         if round_loan and not round_loan.is_applied
         else Decimal('0.00')
     )
+
     available_wallet = dashboard.total_wallet + loan_to_apply
     purchase_lines = []
     total_cost = Decimal('0.00')
@@ -619,6 +627,14 @@ def open_scratch_ticket(request):
         )
         ticket.opened = True
         ticket.save(update_fields=['matches', 'prize_reward', 'opened'])
+        if ticket.prize_reward:
+            dashboard, _ = Dashboard.objects.select_for_update().get_or_create(user=request.user)
+            dashboard.total_wallet += ticket.prize_reward
+            dashboard.accumulated_rewards += ticket.prize_reward
+            dashboard.prize_accumulated += ticket.prize_reward
+            dashboard.save(update_fields=[
+                'total_wallet', 'accumulated_rewards', 'prize_accumulated', 'updated_at',
+            ])
     return Response({'ticket': _scratch_order_payload(ticket)})
 
 
@@ -657,7 +673,7 @@ def save_six_ticket(request):
 @api_view(['GET', 'POST'])
 @authentication_classes([TokenAuthentication])
 @permission_classes([IsAuthenticated])
-def show_reward_lotto6(request):
+def gen_reward_lotto6(request):
     if request.method == 'POST':
         if not request.user.is_staff:
             return Response(
@@ -841,6 +857,14 @@ def check_reward_sixlotto(request, username):
                 [],
             ).append(draw)
 
+    loto6_rules_by_country = {}
+    for rule in LotteryRule.objects.filter(
+        country_id__in={ticket.country_id for ticket in tickets_to_check},
+        game_type='loto6',
+    ).order_by('country_id', 'pk'):
+        loto6_rules_by_country.setdefault(rule.country_id, rule)
+
+    rewards_earned = Decimal('0.00')
     for ticket in tickets_to_check:
         ticket_draws = draws_by_purchase_country.get((ticket.order_id, ticket.country_id), [])
         if len(ticket_draws) != 5:
@@ -848,7 +872,7 @@ def check_reward_sixlotto(request, username):
                 {'detail': f'No complete reward set is available for {ticket.country.name}.'},
                 status=status.HTTP_409_CONFLICT,
             )
-        rule = LotteryRule.objects.filter(country=ticket.country, game_type='loto6').first()
+        rule = loto6_rules_by_country.get(ticket.country_id)
         matches, prize_rank, bonus_match, prize_reward = _lotto6_result(
             ticket.number_selected,
             ticket_draws,
@@ -864,6 +888,15 @@ def check_reward_sixlotto(request, username):
             'matches', 'prize_rank', 'bonus_match', 'prize_reward',
             'is_checked', 'checked_date',
         ])
+        rewards_earned += prize_reward
+    if rewards_earned:
+        dashboard, _ = Dashboard.objects.select_for_update().get_or_create(user=request.user)
+        dashboard.total_wallet += rewards_earned
+        dashboard.accumulated_rewards += rewards_earned
+        dashboard.prize_accumulated += rewards_earned
+        dashboard.save(update_fields=[
+            'total_wallet', 'accumulated_rewards', 'prize_accumulated', 'updated_at',
+        ])
     return Response({
         'id_set': draw_set_id,
         'trans_date': timezone.localdate().isoformat(),
@@ -873,6 +906,43 @@ def check_reward_sixlotto(request, username):
     })
 
 
+@api_view(['POST'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def gen_reward_scratchlotto(request):
+    if not request.user.is_staff:
+        return Response(
+            {'detail': 'Only staff users can generate Scratch Lottery cards.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    countries = list(
+        Country.objects.filter(rules__game_type='scratch')
+        .distinct()
+        .order_by('pk')
+    )
+    if not countries:
+        return Response(
+            {'detail': 'No countries have Scratch Lottery available.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    cards_to_generate = 20
+    cards_per_country, remainder = divmod(cards_to_generate, len(countries))
+    generated_country_count = 0
+    with transaction.atomic():
+        for index, country in enumerate(countries):
+            country_card_count = cards_per_country + (index < remainder)
+            if country_card_count:
+                _generate_scratch_cards(country, country_card_count)
+                generated_country_count += 1
+
+    return Response({
+        'country_count': generated_country_count,
+        'generated_count': cards_to_generate,
+    }, status=status.HTTP_201_CREATED)
+
+
 @api_view(['GET'])
 @authentication_classes([TokenAuthentication])
 @permission_classes([IsAuthenticated])
@@ -880,7 +950,7 @@ def result_summary(request):
     results = []
     purchase = LotteryPurchase.objects.filter(user=request.user).order_by('-round_number').first()
     if purchase is None:
-        return Response({'summary': []})
+        return Response({'summary': [], 'total_cost': '0.00'})
 
     scratch_orders = (
         ScratchLottoOrder.objects.filter(user=request.user, order=purchase)
@@ -922,7 +992,10 @@ def result_summary(request):
             'prize_reward': _money(ticket.prize_reward) if ticket.is_checked else None,
             'checked_date': ticket.checked_date.isoformat() if ticket.checked_date else None,
         })
-    return Response({'summary': results})
+    return Response({
+        'summary': results,
+        'total_cost': _money(purchase.total_cost),
+    })
 
 
 @api_view(['GET'])
@@ -1064,6 +1137,7 @@ def dashboard_for_user(request, username):
         'total_spent': _money(total_spent),
         'total_prizes_won': _money(total_prizes),
         'prize_accumulated': _money(total_prizes),
+        'accumulated_rewards': _money(total_prizes),
         'net_profit_or_loss': _money(total_prizes - total_spent),
     })
     return Response({

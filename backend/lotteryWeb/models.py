@@ -10,6 +10,7 @@ class Dashboard(models.Model):
     total_borrowed = models.DecimalField(max_digits=14, decimal_places=2, default=0)
     borrow_count = models.PositiveIntegerField(default=0)
     prize_accumulated = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    accumulated_rewards = models.DecimalField(max_digits=14, decimal_places=2, default=0)
     rounds_played = models.PositiveIntegerField(default=0)
     status_wallet = models.CharField(max_length=16, choices=STATUS_CHOICES, default='normal')
     net_profit_or_loss = models.DecimalField(max_digits=14, decimal_places=2, default=0)
