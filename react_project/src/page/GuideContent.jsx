@@ -65,7 +65,14 @@ class GuideContent extends Component {
                   <div className="guide-country-content">
                     <div className="country-card">
                       <div>
-                        <p>{thaiGuideText(country.description)}</p>
+                        <p>
+                          {country.description.split('<br>').map((text, index) => (
+                            <React.Fragment key={index}>
+                              {index > 0 && <br />}
+                              {text}
+                            </React.Fragment>
+                          ))}
+                        </p>
                         <p>เกมที่มีให้เลือก: {(country.available_games || []).map(thaiGuideText).join(', ')}</p>
                       </div>
                       <div>
@@ -81,7 +88,14 @@ class GuideContent extends Component {
                       {country.guides.map((guide) => (
                         <article className="card-box" key={guide.id}>
                           <h3>{thaiGuideText(guide.title)}</h3>
-                          <p>{thaiGuideText(guide.game_description)}</p>
+                          <p>
+                          {guide.game_description.split('<br>').map((text, index) => (
+                            <React.Fragment key={index}>
+                              {index > 0 && <br />}
+                              {text}
+                            </React.Fragment>
+                          ))}
+                        </p>
                           <p>ราคาสลาก: {guide.price} {country.currency}</p>
                           <h4>วิธีเล่น</h4>
                           <ul className="bullet-list">
