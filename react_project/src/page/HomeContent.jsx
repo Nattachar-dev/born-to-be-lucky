@@ -102,6 +102,7 @@ class HomeContent extends Component {
                 <strong>2</strong>
               </div>
             </div>
+            <p>"หมายเหตุ: การลุ้นรางวัลอาจสร้างความสนุกแต่ทุกการตัดสินใจมีต้นทุน เล่นอย่างมีสติ"</p>
           </section>
         </div>
     )}
